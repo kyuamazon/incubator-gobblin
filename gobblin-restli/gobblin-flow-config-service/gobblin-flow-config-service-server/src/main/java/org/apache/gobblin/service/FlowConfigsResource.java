@@ -17,6 +17,8 @@
 
 package org.apache.gobblin.service;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -29,15 +31,18 @@ import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.linkedin.restli.common.ComplexResourceKey;
 import com.linkedin.restli.common.EmptyRecord;
+import com.linkedin.restli.common.HttpStatus;
 import com.linkedin.restli.server.CreateResponse;
 import com.linkedin.restli.server.UpdateResponse;
 import com.linkedin.restli.server.annotations.RestLiCollection;
 import com.linkedin.restli.server.resources.ComplexKeyResourceTemplate;
 
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Resource for handling flow configuration requests
  */
+@Slf4j
 @RestLiCollection(name = "flowconfigs", namespace = "org.apache.gobblin.service", keyName = "id")
 public class FlowConfigsResource extends ComplexKeyResourceTemplate<FlowId, EmptyRecord, FlowConfig> {
   private static final Logger LOG = LoggerFactory.getLogger(FlowConfigsResource.class);
@@ -80,6 +85,17 @@ public class FlowConfigsResource extends ComplexKeyResourceTemplate<FlowId, Empt
    */
   @Override
   public CreateResponse create(FlowConfig flowConfig) {
+
+    List<ServiceRequester> requestorList = RequesterService.getRequesters(this);
+
+    try {
+      String serialized = RequesterService.serialize(requestorList);
+      flowConfig.getProperties().put(RequesterService.REQUESTER_LIST, serialized);
+      log.info("Rest requester list is " + serialized);
+    } catch (IOException e) {
+      throw new FlowConfigLoggedException(HttpStatus.S_401_UNAUTHORIZED,
+          "cannot get who is the requester", e);
+    }
     return this.getFlowConfigResourceHandler().createFlowConfig(flowConfig);
   }
 
